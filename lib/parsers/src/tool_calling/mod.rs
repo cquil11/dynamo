@@ -7,6 +7,7 @@ pub mod json;
 pub mod parsers;
 pub mod pythonic;
 pub mod response;
+pub mod xml;
 #[cfg(test)]
 pub mod tests;
 pub mod tools;
@@ -22,3 +23,4 @@ pub use parsers::{
 pub use pythonic::try_tool_call_parse_pythonic;
 pub use response::{CalledFunction, ToolCallResponse, ToolCallType};
 pub use tools::{try_tool_call_parse_aggregate, try_tool_call_parse_stream};
+pub use xml::try_tool_call_parse_xml;

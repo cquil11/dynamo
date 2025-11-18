@@ -55,6 +55,7 @@ impl Default for JsonParserConfig {
 }
 
 /// Configuration for parsing tool calls with different formats
+// TODO(2ez4bz): refactor to allow other parser configs than `JsonParserConfig`.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ToolCallConfig {
     /// The format type for tool calls
@@ -174,6 +175,14 @@ impl ToolCallConfig {
                 parser_type: JsonParserType::DeepseekV31,
                 ..Default::default()
             },
+        }
+    }
+
+    pub fn qwen3_coder() -> Self {
+        // <tool_call><function=name><parameter=key>value</parameter></function></tool_call>
+        Self {
+            format: ToolCallParserType::Xml,
+            json: JsonParserConfig::default(), // Not used for qwen3_coder but kept for consistency.
         }
     }
 }
