@@ -210,6 +210,50 @@ for ((i=1; i<=PREFILL_COUNT; i++)); do
   echo "$!" >> "$PID_FILE"
 done
 
+echo "Waiting for system to be ready (tailing first prefill worker)..."
+echo "Log: ${full_logdir}/output_prefill_worker_1.log"
+
+# Tail the first prefill worker log in background
+tail -f ${full_logdir}/output_prefill_worker_1.log &
+TAIL_PID=$!
+
+# Wait for system to be ready using robust health check
+max_attempts=50
+attempt=0
+
+while [ $attempt -lt $max_attempts ]; do
+  sleep $((attempt == 0 ? 300 : 20))  # 5 min first wait, 20s after
+  
+  response=$(curl -s -w "\n%{http_code}" "http://${nodes[0]}:8000/health" 2>/dev/null)
+  http_code=$(echo "$response" | tail -n1)
+  body=$(echo "$response" | sed '$d')
+  
+  if [[ "$http_code" == "200" ]] && \
+     echo "$body" | grep -q '"status":"healthy"' && \
+     echo "$body" | grep -q '"tensorrt_llm_next"'; then
+    echo "✓ System is ready!"
+    break
+  fi
+  
+  attempt=$((attempt + 1))
+  [ $((attempt % 5)) -eq 0 ] && echo "Waiting... ($attempt/$max_attempts)"
+done
+
+# Stop tailing prefill log
+kill $TAIL_PID 2>/dev/null
+wait $TAIL_PID 2>/dev/null
+
+if [ $attempt -eq $max_attempts ]; then
+  echo "ERROR: System failed to become ready"
+  echo "Frontend log:"
+  tail -50 ${full_logdir}/output_server.log
+  echo ""
+  echo "First prefill worker log:"
+  tail -30 ${full_logdir}/output_prefill_worker_1.log
+  exit 1
+fi
+
+echo "Starting benchmark..."
 
 # start the loadgen
 srun -l --job-name=bmk \
@@ -218,7 +262,22 @@ srun -l --job-name=bmk \
         --container-env HEAD_NODE_IP,HEAD_NODE,SCRIPTS_DIR \
         --mpi=pmix --overlap -N 1 -n 1 \
 	    -w ${nodes[0]} \
-        bash ${SCRIPTS_DIR}/scripts/bench.sh ${served_model_name} ${MULTI_ROUND} ${num_gen_servers} "${concurrency_list}" ${STREAMING} ${full_logdir} ${ctx_gpus} ${gen_gpus} ${model_path} ${isl} ${osl} ${kind} > ${full_logdir}/bench.log 2>&1
+        bash ${SCRIPTS_DIR}/scripts/bench.sh ${served_model_name} ${MULTI_ROUND} ${num_gen_servers} "${concurrency_list}" ${STREAMING} ${full_logdir} ${ctx_gpus} ${gen_gpus} ${model_path} ${isl} ${osl} ${kind} > ${full_logdir}/bench.log 2>&1 &
+BENCH_PID=$!
 
+echo "Tailing benchmark log: ${full_logdir}/bench.log"
+
+# Tail benchmark log and wait for completion
+tail -f ${full_logdir}/bench.log &
+BENCH_TAIL_PID=$!
+
+wait $BENCH_PID
+BENCH_EXIT_CODE=$?
+
+kill $BENCH_TAIL_PID 2>/dev/null
+wait $BENCH_TAIL_PID 2>/dev/null
+
+echo "Benchmark completed with exit code: $BENCH_EXIT_CODE"
 
 # Cleanup will be handled by the EXIT trap
+exit $BENCH_EXIT_CODE
