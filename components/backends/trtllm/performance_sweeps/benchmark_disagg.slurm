@@ -267,6 +267,8 @@ BENCH_PID=$!
 
 echo "Tailing benchmark log: ${full_logdir}/bench.log"
 
+# Wait for bench log file to be created 
+sleep 10
 # Tail benchmark log and wait for completion
 tail -f ${full_logdir}/bench.log &
 BENCH_TAIL_PID=$!
