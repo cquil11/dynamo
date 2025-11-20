@@ -138,7 +138,7 @@ cleanup_and_exit() {
 }
 
 # start the server
-srun -l --job-name=frontend_server \
+srun -l --job-name=srv \
         --container-name=${CONTAINER_NAME} \
         --container-mounts=${container_mounts} \
         --mpi=pmix --overlap -N 1 -n 1 \
@@ -170,7 +170,7 @@ for ((i=1; i<=DECODE_COUNT; i++)); do
   done
   decode_nodes_csv=$(IFS=, ; echo "${decode_node_list[*]}")
   echo "Running Decode Nodes: ${decode_nodes_csv}"
-  srun -l --job-name=decode_worker_${i} \
+  srun -l --job-name=dw_${i} \
       --container-name=${CONTAINER_NAME} \
       --container-mounts=${container_mounts} \
       --mpi=pmix \
@@ -197,7 +197,7 @@ for ((i=1; i<=PREFILL_COUNT; i++)); do
   echo "Running Prefill Worker: ${i}"
   node_idx=$((prefill_start_idx + (i-1)))
   echo "Running Prefill Nodes: ${nodes[node_idx]}"
-  srun -l --job-name=prefill_worker_${i} \
+  srun -l --job-name=pw_${i} \
         --container-name=${CONTAINER_NAME} \
         --container-mounts=${container_mounts} \
         --mpi=pmix --overlap -w ${nodes[node_idx]} \
@@ -212,7 +212,7 @@ done
 
 
 # start the loadgen
-srun -l --job-name=bench_serving \
+srun -l --job-name=bmk \
         --container-name=${CONTAINER_NAME} \
         --container-mounts=${container_mounts} \
         --container-env HEAD_NODE_IP,HEAD_NODE,SCRIPTS_DIR \
