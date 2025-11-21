@@ -1,6 +1,8 @@
 #!/bin/bash
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
+set -x
+
 MULTI_ROUND="${MULTI_ROUND:-8}"
 
 # set MOUNT_DIR
