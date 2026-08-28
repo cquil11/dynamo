@@ -291,7 +291,13 @@ def test_iter_latency_ms_to_wall_time_secs_conversion():
 # ---------------------------------------------------------------------------
 
 
-def _build_publisher_stub(monkeypatch, *, attention_dp_size: int, fpm_enabled: bool):
+def _build_publisher_stub(
+    monkeypatch,
+    *,
+    attention_dp_size: int,
+    fpm_enabled: bool,
+    publish_kv_events: bool = True,
+):
     """Bypass Publisher.__init__ (heavy deps) and seed only the attributes
     initialize() reads or writes. All side-effecty subsystems are stubbed
     via ``monkeypatch`` so initialize() reaches the FPM gate cleanly without
@@ -314,6 +320,7 @@ def _build_publisher_stub(monkeypatch, *, attention_dp_size: int, fpm_enabled: b
     pub.image_token_id = None
     pub.attention_dp_size = attention_dp_size
     pub.fpm_enabled = fpm_enabled
+    pub.publish_kv_events = publish_kv_events
     pub.processing_initial_created_events = True
     pub.metrics_publisher = None
     pub.fpm_publisher = None
@@ -369,6 +376,20 @@ def test_publisher_initialize_constructs_fpm_direct_publisher_when_fpm_enabled(
     assert kwargs["worker_id"] == "worker-abc"
     assert kwargs["dp_size"] == 1
     assert pub.fpm_publisher is not None
+
+
+def test_publisher_initialize_supports_metrics_without_kv_events(monkeypatch):
+    pub, _publisher_mod, _fake_fpm_cls = _build_publisher_stub(
+        monkeypatch,
+        attention_dp_size=1,
+        fpm_enabled=True,
+        publish_kv_events=False,
+    )
+
+    pub.initialize()
+
+    pub._init_publish_metrics_thread.assert_called_once()
+    pub._init_publish_kv_cache_events_thread.assert_not_called()
 
 
 def _publisher_for_kv_event_test():

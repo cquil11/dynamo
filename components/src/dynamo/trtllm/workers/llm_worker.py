@@ -881,9 +881,9 @@ async def init_llm_worker(
             disaggregation_mode=config.disaggregation_mode,
         ).to_dict()
 
-        if config.publish_events_and_metrics:
-            # Initialize the KV-event publisher. Its cache-load telemetry is
-            # used by the router and is separate from TRT-LLM performance stats.
+        if config.publish_events_and_metrics or perf_metrics_enabled:
+            # The publisher owns both independent engine streams. Metrics-only
+            # mode starts stats polling without creating KV-event publishers.
             # Use model as fallback if served_model_name is not provided
             model_name_for_metrics = config.served_model_name or config.model
             metrics_labels = [
@@ -900,7 +900,7 @@ async def init_llm_worker(
             # Create worker-side publisher for consolidated events if consolidator is enabled
             # This subscribes to consolidator's ZMQ output and publishes to NATS with worker_id
             consolidator_publisher = None
-            if consolidator_output_endpoint:
+            if config.publish_events_and_metrics and consolidator_output_endpoint:
                 # Use the connect endpoint directly (already provided by get_consolidator_endpoints)
                 consolidator_publisher = KvEventPublisher(
                     endpoint=endpoint,
@@ -925,6 +925,7 @@ async def init_llm_worker(
                 component_gauges=component_gauges,
                 additional_metrics=additional_metrics,
                 event_buffer_max_size=event_buffer_max_size,
+                publish_kv_events=config.publish_events_and_metrics,
                 zmq_endpoint=trtllm_zmq_bind_endpoint,
                 enable_local_indexer=config.enable_local_indexer,
                 metrics_collector=metrics_collector,

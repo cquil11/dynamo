@@ -396,6 +396,7 @@ class Publisher:
         component_gauges: LLMBackendMetrics,
         additional_metrics: Any = None,
         event_buffer_max_size: int = 0,
+        publish_kv_events: bool = True,
         zmq_endpoint: Optional[str] = None,
         enable_local_indexer: bool = False,
         metrics_collector: Any = None,
@@ -410,6 +411,7 @@ class Publisher:
         self.metrics_labels = metrics_labels
         self.component_gauges = component_gauges
         self.additional_metrics = additional_metrics
+        self.publish_kv_events = publish_kv_events
         if self.additional_metrics is not None:
             self.additional_metrics.set_kv_event_buffer_capacity(event_buffer_max_size)
         self.enable_local_indexer = enable_local_indexer
@@ -450,14 +452,14 @@ class Publisher:
         self._last_engine_event_id_by_rank: dict[int, int] = {}
 
         # Initialize ZMQ publisher if endpoint is provided (consolidator enabled)
-        if zmq_endpoint:
+        if self.publish_kv_events and zmq_endpoint:
             logging.info(
                 f"TensorRT-LLM: Initializing ZMQ KV event publisher with endpoint={zmq_endpoint}"
             )
             self.zmq_kv_event_publisher = ZmqKvEventPublisher(
                 zmq_endpoint, self.kv_block_size
             )
-        else:
+        elif self.publish_kv_events:
             logging.info(
                 "TensorRT-LLM: ZMQ endpoint not provided, ZMQ publisher will not be initialized"
             )
@@ -499,6 +501,9 @@ class Publisher:
                 f"Failed to initialize FpmDirectPublisher; FPM emission disabled: {e}"
             )
             self.fpm_publisher = None
+
+        if not self.publish_kv_events:
+            return
 
         # Setup the kv cache events publisher
         # Publisher selection based on consolidator configuration:
@@ -1143,6 +1148,7 @@ async def get_publisher(
     component_gauges: LLMBackendMetrics,
     additional_metrics: Any = None,
     event_buffer_max_size: int = 0,
+    publish_kv_events: bool = True,
     zmq_endpoint: Optional[str] = None,
     enable_local_indexer: bool = False,
     metrics_collector: Any = None,
@@ -1158,6 +1164,7 @@ async def get_publisher(
         component_gauges=component_gauges,
         additional_metrics=additional_metrics,
         event_buffer_max_size=event_buffer_max_size,
+        publish_kv_events=publish_kv_events,
         zmq_endpoint=zmq_endpoint,
         enable_local_indexer=enable_local_indexer,
         metrics_collector=metrics_collector,
